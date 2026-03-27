@@ -253,6 +253,10 @@ python main.py
 | `config.py` | `src/config/config.ts` |
 
 
+## 深度解析文档
+
+- [记忆系统深度解析](docs/memory-deep-dive.md) — 详细拆解消息存储、历史压缩、记忆生命周期的完整实现思路
+
 ## 扩展方向
 
 如果你想在此基础上继续学习，可以尝试：
