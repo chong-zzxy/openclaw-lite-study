@@ -1,0 +1,8 @@
+.env*
+!.env.example
+__pycache__/
+*.sessions.json
+check_image.py
+create_jianlai_poster.py
+download_*.py
+jianlai_*.jpg
