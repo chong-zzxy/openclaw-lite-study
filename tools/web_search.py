@@ -19,6 +19,7 @@ def web_search(query: str, max_results: int = 5) -> ToolResult:
         )
 
     browser = None
+    pw = None
     try:
         pw = sync_playwright().start()
         browser = pw.chromium.launch(headless=True)
@@ -58,6 +59,11 @@ def web_search(query: str, max_results: int = 5) -> ToolResult:
         if browser:
             try:
                 browser.close()
+            except Exception:
+                pass
+        if pw:
+            try:
+                pw.stop()
             except Exception:
                 pass
 
