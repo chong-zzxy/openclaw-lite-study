@@ -78,6 +78,9 @@ DETECTION_RULES: list[tuple[str, str, list[str]]] = [
     (r"(?:请|以后)?(?:用|使用)(.+?)(?:回复|回答|风格|语气)", "preference", ["风格"]),
     (r"我(?:喜欢|偏好|希望|想要)(.+?)(?:的)?(?:回复|风格|方式|语气)", "preference", ["风格"]),
     (r"(?:不要|别|禁止)(.+?)(?:回复|回答|输出)", "preference", ["风格"]),
+    # 授权/操作偏好
+    (r"(全权|自主|自动|不用问我|不需要确认).*(?:操作|执行|运行|处理)", "preference", ["授权"]),
+    (r"(?:非|除了|不要)(.+?)(?:之类的|等)(?:敏感|危险)?操作", "preference", ["授权"]),
     # 语言偏好
     (r"(?:请)?用(中文|英文|日文|韩文)(?:回复|回答|交流)?", "preference", ["语言"]),
     # 项目信息
@@ -207,8 +210,11 @@ class LongTermMemory:
 
     # === 层级 2: 实时检测 ===
 
-    def detect_and_store(self, user_message: str):
-        """扫描用户消息，检测高价值信息并存入"""
+    def detect_and_store(self, user_message: str) -> bool:
+        """
+        扫描用户消息，检测高价值信息并存入。
+        返回 True 表示检测到"记住"等强信号词，建议立即触发批量提取。
+        """
         detections = detect_memory_from_message(user_message)
         for content, category, tags in detections:
             if category == "fact":
@@ -217,6 +223,11 @@ class LongTermMemory:
                 self.update_profile(preferences=[content])
             self.add_memory(content=content, tags=tags, source="detected")
             print(f"  🧠 检测到记忆: {content}")
+
+        # "记住"是强信号——用户明确要求 Agent 记住某些事
+        urgent_keywords = ["记住", "别忘了", "牢记", "务必记得"]
+        needs_urgent_extract = any(kw in user_message for kw in urgent_keywords)
+        return needs_urgent_extract
 
     # === 层级 3: 批量提取 ===
 
