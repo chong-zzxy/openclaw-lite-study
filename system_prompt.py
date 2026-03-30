@@ -33,7 +33,7 @@ def load_context_files(workspace_dir: str) -> list[tuple[str, str]]:
     return result
 
 
-def build_system_prompt(cfg: AppConfig) -> str:
+def build_system_prompt(cfg: AppConfig, long_term_memory_text: str = "") -> str:
     """构建完整的 system prompt。"""
     ident = cfg.identity
     workspace = os.path.expanduser(cfg.agent.workspace)
@@ -84,5 +84,9 @@ def build_system_prompt(cfg: AppConfig) -> str:
     # 额外 prompt
     if ident.system_prompt_extra:
         sections.append(f"## 额外指引\n{ident.system_prompt_extra}")
+
+    # 长期记忆
+    if long_term_memory_text:
+        sections.append(long_term_memory_text)
 
     return "\n\n".join(sections)

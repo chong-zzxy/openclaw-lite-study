@@ -37,6 +37,7 @@ from hooks import (
 )
 from failover import run_with_failover, FailoverError
 from compaction import should_compact, compact_history
+from memory import LongTermMemory, extract_memories_from_conversation
 
 
 def create_provider(provider_name: str, model_name: str) -> LLMProvider:
@@ -161,6 +162,7 @@ def run_agent_turn(
     session_id: str = "default",
     tool_registry: ToolRegistry | None = None,
     hook_runner: HookRunner | None = None,
+    long_term_memory: LongTermMemory | None = None,
 ) -> str:
     """
     执行一个完整的 agent turn（集成 failover + hooks + compaction）。
@@ -180,7 +182,10 @@ def run_agent_turn(
         hook_runner = create_hook_runner(cfg)
 
     # === 1. 准备阶段 ===
-    system_prompt = build_system_prompt(cfg)
+    ltm_text = ""
+    if long_term_memory:
+        ltm_text = long_term_memory.format_for_prompt(query=user_message)
+    system_prompt = build_system_prompt(cfg, long_term_memory_text=ltm_text)
     tools_schema = tool_registry.get_tools_for_llm(
         allow=cfg.tools.allow,
         deny=cfg.tools.deny,
@@ -244,6 +249,18 @@ def run_agent_turn(
         )
     else:
         result_text = agent_loop(primary)
+
+    # === 5. 提取长期记忆 ===
+    if long_term_memory:
+        try:
+            extract_memories_from_conversation(
+                messages=history,
+                provider=primary,
+                ltm=long_term_memory,
+                session_id=session_id,
+            )
+        except Exception as e:
+            print(f"  ⚠️ 长期记忆提取失败: {e}")
 
     return result_text
 

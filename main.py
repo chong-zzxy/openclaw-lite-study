@@ -14,6 +14,7 @@ from identity import format_greeting
 from agent import run_agent_turn, create_hook_runner
 from tools import create_default_registry
 from tools.sandbox import set_workspace
+from memory import LongTermMemory
 
 
 def _init_workspace_examples(workspace: Path):
@@ -55,6 +56,9 @@ def main():
     session_id = "default"
     tool_registry = create_default_registry()
     hook_runner = create_hook_runner(cfg)
+    # 长期记忆存储在 session store 同级目录
+    ltm_dir = str(Path(cfg.session.store_path).expanduser().parent)
+    long_term_memory = LongTermMemory(ltm_dir)
 
     # 欢迎信息
     print()
@@ -88,6 +92,17 @@ def main():
 
         # 特殊命令
         if user_input in cfg.session.reset_triggers:
+            # reset 前提取长期记忆
+            history = session_store.get_history(session_id)
+            if history and long_term_memory:
+                print("  🧠 提取长期记忆...")
+                try:
+                    from agent import create_provider
+                    provider = create_provider(cfg.agent.model.provider, cfg.agent.model.model)
+                    from memory import extract_memories_from_conversation
+                    extract_memories_from_conversation(history, provider, long_term_memory, session_id)
+                except Exception as e:
+                    print(f"  ⚠️ 记忆提取失败: {e}")
             session_store.reset_session(session_id)
             print("✨ 会话已重置\n")
             continue
@@ -130,6 +145,7 @@ def main():
                 session_id=session_id,
                 tool_registry=tool_registry,
                 hook_runner=hook_runner,
+                long_term_memory=long_term_memory,
             )
             print()
             print(f"{cfg.identity.emoji} {cfg.identity.name}> {reply}")
