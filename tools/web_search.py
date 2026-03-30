@@ -1,9 +1,11 @@
 """
-Web 搜索工具 — 使用 requests + BeautifulSoup 解析 Bing 搜索结果。
+Web 搜索工具 — 使用 requests 请求 DuckDuckGo HTML 版本并解析结果。
 
-注意：依赖 Bing 的 HTML 结构，Bing 改版可能导致解析失败。
+DuckDuckGo 的 HTML 版本（html.duckduckgo.com）不依赖 JS 渲染，
+纯 HTTP 请求即可获取搜索结果，兼容性好。
 """
 
+import re
 import requests
 from urllib.parse import quote_plus
 from tools.registry import ToolDefinition, ToolResult
@@ -18,47 +20,53 @@ _HEADERS = {
 }
 
 
-def _parse_bing_results(html: str, max_results: int) -> list[dict]:
-    """从 Bing HTML 中提取搜索结果"""
+def _parse_ddg_results(html: str, max_results: int) -> list[dict]:
+    """从 DuckDuckGo HTML 中提取搜索结果"""
     try:
         from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        results = []
+        for item in soup.select(".result__body")[:max_results]:
+            title_el = item.select_one(".result__a")
+            snippet_el = item.select_one(".result__snippet")
+            title = title_el.get_text(strip=True) if title_el else ""
+            link = title_el.get("href", "") if title_el else ""
+            snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+            if title:
+                results.append({"title": title, "link": link, "snippet": snippet})
+        return results
     except ImportError:
-        return []
+        return _fallback_parse_ddg(html, max_results)
 
-    soup = BeautifulSoup(html, "html.parser")
+
+def _fallback_parse_ddg(html: str, max_results: int) -> list[dict]:
+    """bs4 不可用时的正则兜底"""
     results = []
-
-    for item in soup.select("li.b_algo")[:max_results]:
-        title_el = item.select_one("h2 a")
-        snippet_el = item.select_one(".b_caption p")
-        if not snippet_el:
-            snippet_el = item.select_one(".b_lineclamp2")
-
-        title = title_el.get_text(strip=True) if title_el else ""
-        link = title_el.get("href", "") if title_el else ""
-        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-
+    pattern = r'class="result__a"[^>]*href="([^"]*)"[^>]*>(.+?)</a>'
+    for link, title_html in re.findall(pattern, html)[:max_results]:
+        title = re.sub(r"<[^>]+>", "", title_html).strip()
         if title:
-            results.append({"title": title, "link": link, "snippet": snippet})
-
+            results.append({"title": title, "link": link, "snippet": ""})
     return results
 
 
 def web_search(query: str, max_results: int = 5) -> ToolResult:
     try:
-        url = f"https://www.bing.com/search?q={quote_plus(query)}&ensearch=0"
+        url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
         resp = requests.get(url, headers=_HEADERS, timeout=15)
         resp.raise_for_status()
 
-        results = _parse_bing_results(resp.text, max_results)
+        results = _parse_ddg_results(resp.text, max_results)
 
         if not results:
-            # 可能是 bs4 没装，尝试用正则兜底
-            return _fallback_parse(resp.text, query, max_results)
+            return ToolResult(True, f"搜索 '{query}' 未找到结果。")
 
         lines = []
         for i, r in enumerate(results):
-            lines.append(f"{i+1}. {r['title']}\n   {r['link']}\n   {r['snippet']}")
+            entry = f"{i+1}. {r['title']}\n   {r['link']}"
+            if r["snippet"]:
+                entry += f"\n   {r['snippet']}"
+            lines.append(entry)
 
         output = f"搜索 '{query}' 的结果：\n\n" + "\n\n".join(lines)
         return ToolResult(True, output)
@@ -69,28 +77,10 @@ def web_search(query: str, max_results: int = 5) -> ToolResult:
         return ToolResult(False, "", f"搜索失败: {e}")
 
 
-def _fallback_parse(html: str, query: str, max_results: int) -> ToolResult:
-    """bs4 不可用时的正则兜底解析"""
-    import re
-    pattern = r'<h2><a[^>]+href="([^"]+)"[^>]*>(.+?)</a></h2>'
-    matches = re.findall(pattern, html)[:max_results]
-
-    if not matches:
-        return ToolResult(True, f"搜索 '{query}' 未找到结果（建议安装 beautifulsoup4 以获得更好的解析效果）。")
-
-    lines = []
-    for i, (link, title_html) in enumerate(matches):
-        title = re.sub(r'<[^>]+>', '', title_html).strip()
-        lines.append(f"{i+1}. {title}\n   {link}")
-
-    output = f"搜索 '{query}' 的结果：\n\n" + "\n\n".join(lines)
-    return ToolResult(True, output)
-
-
 def create_web_search_tool() -> ToolDefinition:
     return ToolDefinition(
         name="web_search",
-        description="Search the web using Bing.",
+        description="Search the web using DuckDuckGo.",
         parameters={
             "type": "object",
             "properties": {
