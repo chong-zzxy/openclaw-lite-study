@@ -6,3 +6,5 @@ check_image.py
 create_jianlai_poster.py
 download_*.py
 jianlai_*.jpg
+daily_reminder.py
+setup_reminder.bat

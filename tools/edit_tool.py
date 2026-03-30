@@ -2,11 +2,12 @@
 
 from pathlib import Path
 from tools.registry import ToolDefinition, ToolResult
+from tools.sandbox import resolve_safe_path
 
 
 def edit_file(file_path: str, old_string: str, new_string: str) -> ToolResult:
     try:
-        p = Path(file_path).expanduser()
+        p = resolve_safe_path(file_path)
         if not p.exists():
             return ToolResult(False, "", f"File not found: {file_path}")
 
@@ -19,6 +20,8 @@ def edit_file(file_path: str, old_string: str, new_string: str) -> ToolResult:
 
         p.write_text(content.replace(old_string, new_string, 1), encoding="utf-8")
         return ToolResult(True, f"Edited {file_path}")
+    except ValueError as e:
+        return ToolResult(False, "", str(e))
     except Exception as e:
         return ToolResult(False, "", str(e))
 
@@ -26,7 +29,7 @@ def edit_file(file_path: str, old_string: str, new_string: str) -> ToolResult:
 def create_edit_tool() -> ToolDefinition:
     return ToolDefinition(
         name="edit",
-        description="Find and replace a unique string in a file.",
+        description="Find and replace a unique string in a file within the workspace. Paths are relative to workspace root.",
         parameters={
             "type": "object",
             "properties": {

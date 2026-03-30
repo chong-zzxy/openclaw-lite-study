@@ -2,13 +2,14 @@
 
 from pathlib import Path
 from tools.registry import ToolDefinition, ToolResult
+from tools.sandbox import resolve_safe_path
 
 MAX_CHARS = 100_000
 
 
 def read_file(file_path: str, start_line: int = 0, end_line: int = 0) -> ToolResult:
     try:
-        p = Path(file_path).expanduser()
+        p = resolve_safe_path(file_path)
         if not p.exists():
             return ToolResult(False, "", f"File not found: {file_path}")
         if not p.is_file():
@@ -27,6 +28,8 @@ def read_file(file_path: str, start_line: int = 0, end_line: int = 0) -> ToolRes
         return ToolResult(True, content)
     except UnicodeDecodeError:
         return ToolResult(False, "", f"Binary file: {file_path}")
+    except ValueError as e:
+        return ToolResult(False, "", str(e))
     except Exception as e:
         return ToolResult(False, "", str(e))
 
@@ -34,7 +37,7 @@ def read_file(file_path: str, start_line: int = 0, end_line: int = 0) -> ToolRes
 def create_read_tool() -> ToolDefinition:
     return ToolDefinition(
         name="read",
-        description="Read file contents. Optionally specify line range.",
+        description="Read file contents within the workspace. Paths are relative to workspace root. Optionally specify line range.",
         parameters={
             "type": "object",
             "properties": {

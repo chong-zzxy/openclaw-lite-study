@@ -2,6 +2,7 @@
 
 import subprocess
 from tools.registry import ToolDefinition, ToolResult
+from tools.sandbox import get_workspace
 
 MAX_OUTPUT = 50_000
 DEFAULT_TIMEOUT = 30
@@ -9,9 +10,10 @@ DEFAULT_TIMEOUT = 30
 
 def exec_command(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
     try:
+        ws = get_workspace()
         r = subprocess.run(
             command, shell=True, capture_output=True,
-            text=True, timeout=timeout,
+            text=True, timeout=timeout, cwd=str(ws),
         )
         output = r.stdout or ""
         if r.stderr:
@@ -31,7 +33,7 @@ def exec_command(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
 def create_exec_tool() -> ToolDefinition:
     return ToolDefinition(
         name="exec",
-        description="Run a shell command and return output.",
+        description="Run a shell command within the workspace directory and return output.",
         parameters={
             "type": "object",
             "properties": {

@@ -13,6 +13,20 @@ from session import SessionStore
 from identity import format_greeting
 from agent import run_agent_turn, create_hook_runner
 from tools import create_default_registry
+from tools.sandbox import set_workspace
+
+
+def _init_workspace_examples(workspace: Path):
+    """首次启动时将 workspace-example/ 下的示例文件复制到工作区"""
+    example_dir = Path(__file__).parent / "workspace-example"
+    if not example_dir.exists():
+        return
+    for src in example_dir.iterdir():
+        if src.is_file() and src.suffix == ".md":
+            dst = workspace / src.name
+            if not dst.exists():
+                dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+                print(f"  📄 已复制示例文件: {src.name} → {dst}")
 
 
 def main():
@@ -29,6 +43,12 @@ def main():
     # 确保工作区目录存在
     workspace = Path(cfg.agent.workspace).expanduser()
     workspace.mkdir(parents=True, exist_ok=True)
+
+    # 初始化沙箱
+    set_workspace(cfg.agent.workspace)
+
+    # 首次启动时复制示例文件到工作区
+    _init_workspace_examples(workspace)
 
     # 初始化
     session_store = SessionStore(cfg.session.store_path)
