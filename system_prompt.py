@@ -13,7 +13,7 @@ TOOL_SUMMARIES: dict[str, str] = {
     "write": "创建或覆盖文件",
     "edit": "对文件进行精确编辑（查找替换）",
     "exec": "执行 shell 命令",
-    "web_search": "搜索网页（模拟）",
+    "web_search": "搜索网页（DuckDuckGo）",
 }
 
 

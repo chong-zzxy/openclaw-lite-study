@@ -70,7 +70,7 @@ openclaw-lite/
 │   ├── write_tool.py    # 文件写入
 │   ├── edit_tool.py     # 文件编辑（查找替换）
 │   ├── exec_tool.py     # Shell 命令执行
-│   └── web_search.py    # Web 搜索（Playwright + Bing）
+│   └── web_search.py    # Web 搜索（DuckDuckGo）
 ├── providers/
 │   ├── base.py          # LLM Provider 抽象基类
 │   └── openai_provider.py  # OpenAI 兼容 API 实现
@@ -85,8 +85,7 @@ openclaw-lite/
 
 ```bash
 # 1. 安装依赖
-pip install openai python-dotenv playwright
-playwright install chromium
+pip install openai python-dotenv requests beautifulsoup4
 
 # 2. 配置密钥
 cp .env.example .env
@@ -182,7 +181,7 @@ python main.py
 | `write` | 写入文件 | 自动创建父目录 |
 | `edit` | 查找替换 | 要求 old_string 在文件中唯一匹配，防止误改 |
 | `exec` | 执行命令 | 带超时（默认 30s），输出超 50K 截断 |
-| `web_search` | 网页搜索 | Playwright 驱动无头 Chromium 访问 Bing |
+| `web_search` | 网页搜索 | DuckDuckGo HTML 版，纯 HTTP 请求 |
 
 
 ### 6. System Prompt 构建 (`system_prompt.py`)
