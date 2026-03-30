@@ -256,18 +256,3 @@ python main.py
 ## 深度解析文档
 
 - [记忆系统深度解析](docs/memory-deep-dive.md) — 详细拆解消息存储、历史压缩、记忆生命周期的完整实现思路
-
-## 扩展方向
-
-如果你想在此基础上继续学习，可以尝试：
-
-- 接入更多 LLM Provider（Anthropic、Google Gemini 等）
-- 实现真正的 token 计数替代消息数计数来触发 compaction
-- 添加更多钩子点（agent 启动前、模型解析前等）
-- 实现用户审批机制（危险操作需要用户输入 `/approve` 确认）
-- 添加流式输出（streaming）支持
-- 实现 MCP（Model Context Protocol）工具集成
-
-## License
-
-MIT
