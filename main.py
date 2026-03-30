@@ -73,10 +73,12 @@ def main():
     print(f"工作区: {workspace}")
     print()
     print("输入消息开始对话。特殊命令：")
-    print("  /new, /reset  — 重置会话")
-    print("  /sessions     — 列出会话")
-    print("  /model <p/m>  — 切换模型（如 /model openai/gpt-4o）")
-    print("  /quit, /exit  — 退出")
+    print("  /new, /reset    — 重置会话")
+    print("  /remember <文本> — 主动记住一条信息")
+    print("  /memory         — 查看长期记忆")
+    print("  /sessions       — 列出会话")
+    print("  /model <p/m>    — 切换模型（如 /model dashscope/qwen-max）")
+    print("  /quit, /exit    — 退出")
     print()
 
     # 交互循环
@@ -110,6 +112,32 @@ def main():
         if user_input in ("/quit", "/exit"):
             print("再见！")
             break
+
+        if user_input.startswith("/remember "):
+            text = user_input[10:].strip()
+            if text:
+                long_term_memory.remember_explicit(text)
+            else:
+                print("  用法: /remember 要记住的内容")
+            print()
+            continue
+
+        if user_input == "/memory":
+            p = long_term_memory.profile
+            if p.preferences:
+                print("  偏好:")
+                for item in p.preferences:
+                    print(f"    - {item}")
+            if p.facts:
+                print("  已知信息:")
+                for item in p.facts:
+                    print(f"    - {item}")
+            if long_term_memory.memories:
+                print(f"  知识记忆: {len(long_term_memory.memories)} 条")
+            if not p.preferences and not p.facts and not long_term_memory.memories:
+                print("  暂无长期记忆")
+            print()
+            continue
 
         if user_input == "/sessions":
             sessions = session_store.list_sessions()

@@ -63,6 +63,7 @@ openclaw-lite/
 ├── hooks.py             # 工具调用钩子（before/after）
 ├── failover.py          # 模型故障转移
 ├── compaction.py        # 历史压缩
+├── memory.py            # 长期记忆（三层策略：显式/检测/批量提取）
 ├── tools/
 │   ├── registry.py      # 工具注册表和调度
 │   ├── read_tool.py     # 文件读取
@@ -100,6 +101,8 @@ python main.py
 | 命令 | 说明 |
 |------|------|
 | `/new` `/reset` | 重置会话 |
+| `/remember <文本>` | 主动记住一条信息（存入长期记忆） |
+| `/memory` | 查看当前长期记忆 |
 | `/model dashscope/qwen-max` | 运行时切换模型 |
 | `/sessions` | 查看会话状态 |
 | `/quit` `/exit` | 退出 |

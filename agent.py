@@ -216,6 +216,10 @@ def run_agent_turn(
     session_store.add_message(session_id, user_msg)
     history.append(user_msg)
 
+    # === 实时检测用户消息中的高价值信息（不调 LLM）===
+    if long_term_memory:
+        long_term_memory.detect_and_store(user_message)
+
     # === 3. 构建 provider（延迟创建 fallback，避免缺少 API key 时提前报错）===
     primary = create_provider(cfg.agent.model.provider, cfg.agent.model.model)
 
@@ -250,8 +254,8 @@ def run_agent_turn(
     else:
         result_text = agent_loop(primary)
 
-    # === 5. 提取长期记忆 ===
-    if long_term_memory:
+    # === 5. 按需批量提取长期记忆（每 N 轮触发一次）===
+    if long_term_memory and long_term_memory.should_batch_extract():
         try:
             extract_memories_from_conversation(
                 messages=history,
