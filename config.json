@@ -14,7 +14,7 @@
         "fallback_models": [
             {
                 "provider": "dashscope",
-                "model": "qwen-plus"
+                "model": "qwen3.5-plus"
             }
         ],
         "timeout_seconds": 300,
@@ -42,6 +42,5 @@
         "reset_triggers": [
             "/new",
             "/reset"
-        ]
-    }
+        ]    }
 }

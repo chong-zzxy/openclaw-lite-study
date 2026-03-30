@@ -1,77 +1,96 @@
 """
-Web 搜索工具 — 使用 Playwright 驱动 Bing 搜索。
-对应 OpenClaw: web_search (Brave Search API)
+Web 搜索工具 — 使用 requests + BeautifulSoup 解析 Bing 搜索结果。
 
-注意：依赖 Bing 的 DOM 结构（li.b_algo 等选择器），Bing 改版可能导致解析失败。
+注意：依赖 Bing 的 HTML 结构，Bing 改版可能导致解析失败。
 """
 
+import requests
 from urllib.parse import quote_plus
 from tools.registry import ToolDefinition, ToolResult
+
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+}
+
+
+def _parse_bing_results(html: str, max_results: int) -> list[dict]:
+    """从 Bing HTML 中提取搜索结果"""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
+    results = []
+
+    for item in soup.select("li.b_algo")[:max_results]:
+        title_el = item.select_one("h2 a")
+        snippet_el = item.select_one(".b_caption p")
+        if not snippet_el:
+            snippet_el = item.select_one(".b_lineclamp2")
+
+        title = title_el.get_text(strip=True) if title_el else ""
+        link = title_el.get("href", "") if title_el else ""
+        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+
+        if title:
+            results.append({"title": title, "link": link, "snippet": snippet})
+
+    return results
 
 
 def web_search(query: str, max_results: int = 5) -> ToolResult:
     try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        return ToolResult(
-            False, "",
-            "请安装 playwright: pip install playwright && playwright install chromium",
-        )
-
-    browser = None
-    pw = None
-    try:
-        pw = sync_playwright().start()
-        browser = pw.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.set_default_timeout(15000)
-
-        # 用 Bing 搜索，query 做 URL 编码
         url = f"https://www.bing.com/search?q={quote_plus(query)}&ensearch=0"
-        page.goto(url, wait_until="domcontentloaded")
+        resp = requests.get(url, headers=_HEADERS, timeout=15)
+        resp.raise_for_status()
 
-        # 等待搜索结果加载
-        page.wait_for_selector("li.b_algo", timeout=10000)
-
-        # 提取搜索结果
-        items = page.query_selector_all("li.b_algo")
-        results = []
-        for i, item in enumerate(items[:max_results]):
-            title_el = item.query_selector("h2 a")
-            snippet_el = item.query_selector(".b_caption p, .b_lineclamp2")
-
-            title = title_el.inner_text().strip() if title_el else ""
-            link = title_el.get_attribute("href") if title_el else ""
-            snippet = snippet_el.inner_text().strip() if snippet_el else ""
-
-            if title:
-                results.append(f"{i+1}. {title}\n   {link}\n   {snippet}")
+        results = _parse_bing_results(resp.text, max_results)
 
         if not results:
-            return ToolResult(True, f"搜索 '{query}' 未找到结果。")
+            # 可能是 bs4 没装，尝试用正则兜底
+            return _fallback_parse(resp.text, query, max_results)
 
-        output = f"搜索 '{query}' 的结果：\n\n" + "\n\n".join(results)
+        lines = []
+        for i, r in enumerate(results):
+            lines.append(f"{i+1}. {r['title']}\n   {r['link']}\n   {r['snippet']}")
+
+        output = f"搜索 '{query}' 的结果：\n\n" + "\n\n".join(lines)
         return ToolResult(True, output)
 
+    except requests.RequestException as e:
+        return ToolResult(False, "", f"搜索请求失败: {e}")
     except Exception as e:
         return ToolResult(False, "", f"搜索失败: {e}")
-    finally:
-        if browser:
-            try:
-                browser.close()
-            except Exception:
-                pass
-        if pw:
-            try:
-                pw.stop()
-            except Exception:
-                pass
+
+
+def _fallback_parse(html: str, query: str, max_results: int) -> ToolResult:
+    """bs4 不可用时的正则兜底解析"""
+    import re
+    pattern = r'<h2><a[^>]+href="([^"]+)"[^>]*>(.+?)</a></h2>'
+    matches = re.findall(pattern, html)[:max_results]
+
+    if not matches:
+        return ToolResult(True, f"搜索 '{query}' 未找到结果（建议安装 beautifulsoup4 以获得更好的解析效果）。")
+
+    lines = []
+    for i, (link, title_html) in enumerate(matches):
+        title = re.sub(r'<[^>]+>', '', title_html).strip()
+        lines.append(f"{i+1}. {title}\n   {link}")
+
+    output = f"搜索 '{query}' 的结果：\n\n" + "\n\n".join(lines)
+    return ToolResult(True, output)
 
 
 def create_web_search_tool() -> ToolDefinition:
     return ToolDefinition(
         name="web_search",
-        description="Search the web using Bing via browser automation.",
+        description="Search the web using Bing.",
         parameters={
             "type": "object",
             "properties": {
