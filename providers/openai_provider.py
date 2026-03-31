@@ -8,6 +8,11 @@ from providers.base import LLMProvider, LLMResponse, ToolCall
 
 
 class OpenAIProvider(LLMProvider):
+    """
+    OpenAI 兼容 API 的 Provider 实现。
+    通过 base_url 参数支持 dashscope、deepseek 等兼容 OpenAI 格式的服务。
+    """
+
     def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str | None = None):
         try:
             from openai import OpenAI
@@ -25,6 +30,11 @@ class OpenAIProvider(LLMProvider):
         tools: list[dict] | None = None,
         temperature: float = 0.7,
     ) -> LLMResponse:
+        """
+        调用 OpenAI Chat Completions API。
+        将返回的 tool_calls 解析为 ToolCall 对象列表，
+        将 usage 统计提取为字典。
+        """
         kwargs: dict = {
             "model": self._model,
             "messages": messages,

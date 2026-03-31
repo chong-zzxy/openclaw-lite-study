@@ -6,6 +6,10 @@ from tools.sandbox import resolve_safe_path
 
 
 def write_file(file_path: str, content: str) -> ToolResult:
+    """
+    写入文件。路径经过沙箱校验，只能写入 workspace 内。
+    父目录不存在时自动创建。
+    """
     try:
         p = resolve_safe_path(file_path)
         p.parent.mkdir(parents=True, exist_ok=True)

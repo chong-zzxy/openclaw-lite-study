@@ -214,8 +214,8 @@ python main.py
   },
   "agent": {
     "workspace": "~/.openclaw-lite/workspace",  // 工作区目录
-    "model": { "provider": "dashscope", "model": "qwen-max" },
-    "fallback_models": [{ "provider": "dashscope", "model": "qwen-plus" }],
+    "model": { "provider": "dashscope", "model": "qwen3-max" },
+    "fallback_models": [{ "provider": "dashscope", "model": "qwen3.5-plus" }],
     "timeout_seconds": 300,
     "max_tool_iterations": 20,  // 单轮最大工具调用次数
     "compaction_threshold": 40  // 触发历史压缩的消息数

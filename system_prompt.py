@@ -8,6 +8,7 @@ import datetime
 from pathlib import Path
 from config import AppConfig
 
+# 工具简要描述，用于 system prompt 中告诉 LLM 每个工具的用途
 TOOL_SUMMARIES: dict[str, str] = {
     "read": "读取文件内容",
     "write": "创建或覆盖文件",
@@ -18,7 +19,11 @@ TOOL_SUMMARIES: dict[str, str] = {
 
 
 def load_context_files(workspace_dir: str) -> list[tuple[str, str]]:
-    """加载工作区上下文文件（SOUL.md, AGENTS.md, TOOLS.md）。"""
+    """
+    加载工作区上下文文件（SOUL.md, AGENTS.md, TOOLS.md）。
+    这些文件定义 Agent 的人格和项目规范，内容会被原样注入 system prompt。
+    文件不存在则跳过，不报错。
+    """
     result = []
     ws = Path(workspace_dir).expanduser()
     for name in ["SOUL.md", "AGENTS.md", "TOOLS.md"]:
@@ -34,7 +39,11 @@ def load_context_files(workspace_dir: str) -> list[tuple[str, str]]:
 
 
 def build_system_prompt(cfg: AppConfig, long_term_memory_text: str = "") -> str:
-    """构建完整的 system prompt。"""
+    """
+    构建完整的 system prompt。
+    按顺序拼装：身份 → 工具列表 → 调用风格 → 安全规则 → 工作区 →
+    时间 → 上下文文件 → 额外 prompt → 长期记忆。
+    """
     ident = cfg.identity
     workspace = os.path.expanduser(cfg.agent.workspace)
     allowed = [t for t in cfg.tools.allow if t not in cfg.tools.deny]

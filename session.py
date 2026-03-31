@@ -12,11 +12,16 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Message:
+    """
+    单条消息。对应 OpenAI API 的 message 结构。
+    role 决定消息类型：user（用户输入）、assistant（LLM 回复）、
+    system（系统指令）、tool（工具执行结果）。
+    """
     role: str          # user | assistant | system | tool
     content: str
     timestamp: float = field(default_factory=time.time)
-    tool_call_id: str | None = None
-    name: str | None = None
+    tool_call_id: str | None = None  # tool 消息必须关联到 LLM 请求的工具调用 ID
+    name: str | None = None          # tool 消息的工具名称
 
     def to_dict(self) -> dict:
         d: dict = {"role": self.role, "content": self.content, "timestamp": self.timestamp}
@@ -38,6 +43,10 @@ class Message:
 
 @dataclass
 class Session:
+    """
+    一个会话，包含有序的消息列表。
+    session_id 用于区分不同会话（当前默认只有 "default"）。
+    """
     session_id: str
     messages: list[Message] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
@@ -62,7 +71,13 @@ class Session:
 
 
 class SessionStore:
-    """会话持久化存储。"""
+    """
+    会话持久化存储。
+
+    将所有会话序列化为单个 JSON 文件。
+    每次消息变更都触发全量写入（原子替换，防崩溃丢数据）。
+    支持多会话管理，但当前默认只用 "default" 一个会话。
+    """
 
     def __init__(self, store_path: str):
         self.store_path = Path(store_path).expanduser()
@@ -70,6 +85,7 @@ class SessionStore:
         self._load()
 
     def _load(self):
+        """从 JSON 文件加载所有会话"""
         if self.store_path.exists():
             try:
                 with open(self.store_path, "r", encoding="utf-8") as f:
@@ -89,23 +105,27 @@ class SessionStore:
         tmp_path.replace(self.store_path)
 
     def get_or_create(self, session_id: str) -> Session:
+        """获取会话，不存在则创建空会话"""
         if session_id not in self.sessions:
             self.sessions[session_id] = Session(session_id=session_id)
         return self.sessions[session_id]
 
     def add_message(self, session_id: str, message: Message):
+        """添加消息并立即持久化"""
         session = self.get_or_create(session_id)
         session.messages.append(message)
         session.updated_at = time.time()
         self._save()
 
     def get_history(self, session_id: str, limit: int = 50) -> list[Message]:
+        """获取会话历史，limit > 0 时只返回最近 N 条"""
         session = self.get_or_create(session_id)
         if limit > 0 and len(session.messages) > limit:
             return list(session.messages[-limit:])
         return list(session.messages)
 
     def reset_session(self, session_id: str):
+        """删除指定会话及其所有消息"""
         if session_id in self.sessions:
             del self.sessions[session_id]
             self._save()

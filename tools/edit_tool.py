@@ -6,6 +6,10 @@ from tools.sandbox import resolve_safe_path
 
 
 def edit_file(file_path: str, old_string: str, new_string: str) -> ToolResult:
+    """
+    查找替换编辑文件。路径经过沙箱校验。
+    old_string 必须在文件中唯一匹配（防止误改多处），否则报错。
+    """
     try:
         p = resolve_safe_path(file_path)
         if not p.exists():

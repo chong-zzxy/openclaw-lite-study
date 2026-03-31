@@ -9,6 +9,10 @@ DEFAULT_TIMEOUT = 30
 
 
 def exec_command(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
+    """
+    执行 shell 命令。cwd 设为 workspace 目录。
+    带超时控制，输出超长自动截断。
+    """
     try:
         ws = get_workspace()
         r = subprocess.run(

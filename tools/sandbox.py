@@ -10,13 +10,13 @@ _workspace: Path | None = None
 
 
 def set_workspace(workspace_path: str):
-    """设置沙箱根目录"""
+    """设置沙箱根目录。由 main.py 启动时调用一次。"""
     global _workspace
     _workspace = Path(workspace_path).expanduser().resolve()
 
 
 def get_workspace() -> Path:
-    """获取沙箱根目录"""
+    """获取沙箱根目录。未初始化时抛出 RuntimeError。"""
     if _workspace is None:
         raise RuntimeError("workspace 未初始化，请先调用 set_workspace()")
     return _workspace

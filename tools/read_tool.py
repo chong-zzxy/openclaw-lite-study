@@ -8,6 +8,10 @@ MAX_CHARS = 100_000
 
 
 def read_file(file_path: str, start_line: int = 0, end_line: int = 0) -> ToolResult:
+    """
+    读取文件内容。路径经过沙箱校验，只能读取 workspace 内的文件。
+    支持行范围读取（start_line/end_line，1-indexed），超长内容自动截断。
+    """
     try:
         p = resolve_safe_path(file_path)
         if not p.exists():

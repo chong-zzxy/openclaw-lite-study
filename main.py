@@ -31,6 +31,11 @@ def _init_workspace_examples(workspace: Path):
 
 
 def main():
+    """
+    CLI 主循环。
+    初始化配置、沙箱、会话、工具、钩子、长期记忆，
+    然后进入 REPL 交互循环，处理用户输入和特殊命令。
+    """
     # 加载配置
     config_path = os.environ.get("OPENCLAW_LITE_CONFIG", "config.json")
     if not Path(config_path).exists():

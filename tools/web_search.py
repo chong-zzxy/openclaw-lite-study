@@ -51,6 +51,10 @@ def _fallback_parse_ddg(html: str, max_results: int) -> list[dict]:
 
 
 def web_search(query: str, max_results: int = 5) -> ToolResult:
+    """
+    搜索网页。向 DuckDuckGo HTML 版发送请求，解析返回的搜索结果。
+    优先用 BeautifulSoup 解析，bs4 不可用时用正则兜底。
+    """
     try:
         url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
         resp = requests.get(url, headers=_HEADERS, timeout=15)
