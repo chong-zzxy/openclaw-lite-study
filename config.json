@@ -18,8 +18,14 @@
             }
         ],
         "timeout_seconds": 300,
-        "max_tool_iterations": 20,
-        "compaction_threshold": 40
+        "max_tool_iterations": 25,
+        "compaction_token_threshold": 80000,
+        "compaction_keep_recent": 10,
+        "stream": true
+    },
+    "permissions": {
+        "mode": "default",
+        "auto_allow_read_tools": true
     },
     "hooks": {
         "enable_logging": true,
@@ -28,19 +34,14 @@
     },
     "tools": {
         "allow": [
-            "exec",
-            "read",
-            "write",
-            "edit",
-            "web_search"
+            "exec", "read", "write", "edit",
+            "glob", "grep", "web_search"
         ],
         "deny": []
     },
     "session": {
         "store_path": "~/.openclaw-lite/sessions.json",
-        "history_limit": 50,
-        "reset_triggers": [
-            "/new",
-            "/reset"
-        ]    }
+        "history_limit": 100,
+        "reset_triggers": ["/new", "/reset"]
+    }
 }

@@ -47,4 +47,5 @@ def create_exec_tool() -> ToolDefinition:
             "required": ["command"],
         },
         handler=exec_command,
+        destructive=True,
     )

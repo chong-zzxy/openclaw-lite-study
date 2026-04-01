@@ -34,4 +34,5 @@ def create_write_tool() -> ToolDefinition:
             "required": ["file_path", "content"],
         },
         handler=write_file,
+        destructive=False,
     )

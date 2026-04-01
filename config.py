@@ -1,6 +1,5 @@
 """
-配置加载模块。
-对应 OpenClaw: src/config/config.ts
+配置加载模块。v2: 新增权限配置、流式输出、token 阈值。
 """
 
 import json
@@ -33,13 +32,23 @@ class AgentConfig:
     model: ModelRef = field(default_factory=ModelRef)
     fallback_models: list[ModelRef] = field(default_factory=list)
     timeout_seconds: int = 300
-    max_tool_iterations: int = 20
-    compaction_threshold: int = 40
+    max_tool_iterations: int = 25
+    # v2: token-based compaction
+    compaction_token_threshold: int = 80000
+    compaction_keep_recent: int = 10
+    # v2: 流式输出
+    stream: bool = True
+
+
+@dataclass
+class PermissionConfig:
+    """v2: 权限配置"""
+    mode: str = "default"  # default | acceptEdits | plan | bypassPermissions
+    auto_allow_read_tools: bool = True
 
 
 @dataclass
 class HooksConfig:
-    """钩子配置。对应 OpenClaw: hooks 配置段"""
     enable_logging: bool = True
     enable_dangerous_command_guard: bool = True
     output_truncation_chars: int = 50000
@@ -48,7 +57,7 @@ class HooksConfig:
 @dataclass
 class ToolsConfig:
     allow: list[str] = field(default_factory=lambda: [
-        "exec", "read", "write", "edit", "web_search",
+        "exec", "read", "write", "edit", "glob", "grep", "web_search",
     ])
     deny: list[str] = field(default_factory=list)
 
@@ -56,7 +65,7 @@ class ToolsConfig:
 @dataclass
 class SessionConfig:
     store_path: str = "~/.openclaw-lite/sessions.json"
-    history_limit: int = 50
+    history_limit: int = 100
     reset_triggers: list[str] = field(default_factory=lambda: ["/new", "/reset"])
 
 
@@ -64,16 +73,26 @@ class SessionConfig:
 class AppConfig:
     identity: IdentityConfig = field(default_factory=IdentityConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
+    permissions: PermissionConfig = field(default_factory=PermissionConfig)
     hooks: HooksConfig = field(default_factory=HooksConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     session: SessionConfig = field(default_factory=SessionConfig)
 
 
+def _parse_model_ref(d: dict, dp="dashscope", dm="qwen-max") -> ModelRef:
+    return ModelRef(provider=d.get("provider", dp), model=d.get("model", dm))
+
+
 def load_config(config_path: str = "config.json") -> AppConfig:
-    """加载配置文件，缺失字段用默认值填充。"""
     path = Path(config_path)
     if not path.exists():
-        return AppConfig()
+        script_dir = Path(__file__).parent
+        alt_path = script_dir / "config.json"
+        if alt_path.exists():
+            config_path = str(alt_path)
+            path = alt_path
+        else:
+            return AppConfig()
 
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
@@ -91,23 +110,23 @@ def load_config(config_path: str = "config.json") -> AppConfig:
 
     if "agent" in raw:
         d = raw["agent"]
-        m = d.get("model", {})
-        fallbacks = []
-        for fb in d.get("fallback_models", []):
-            fallbacks.append(ModelRef(
-                provider=fb.get("provider", "dashscope"),
-                model=fb.get("model", "qwen-max"),
-            ))
+        fallbacks = [_parse_model_ref(fb) for fb in d.get("fallback_models", [])]
         cfg.agent = AgentConfig(
             workspace=d.get("workspace", cfg.agent.workspace),
-            model=ModelRef(
-                provider=m.get("provider", "dashscope"),
-                model=m.get("model", "qwen-max"),
-            ),
+            model=_parse_model_ref(d.get("model", {})),
             fallback_models=fallbacks,
             timeout_seconds=d.get("timeout_seconds", 300),
-            max_tool_iterations=d.get("max_tool_iterations", 20),
-            compaction_threshold=d.get("compaction_threshold", 40),
+            max_tool_iterations=d.get("max_tool_iterations", 25),
+            compaction_token_threshold=d.get("compaction_token_threshold", 80000),
+            compaction_keep_recent=d.get("compaction_keep_recent", 10),
+            stream=d.get("stream", True),
+        )
+
+    if "permissions" in raw:
+        d = raw["permissions"]
+        cfg.permissions = PermissionConfig(
+            mode=d.get("mode", "default"),
+            auto_allow_read_tools=d.get("auto_allow_read_tools", True),
         )
 
     if "hooks" in raw:
@@ -129,7 +148,7 @@ def load_config(config_path: str = "config.json") -> AppConfig:
         d = raw["session"]
         cfg.session = SessionConfig(
             store_path=d.get("store_path", cfg.session.store_path),
-            history_limit=d.get("history_limit", 50),
+            history_limit=d.get("history_limit", 100),
             reset_triggers=d.get("reset_triggers", ["/new", "/reset"]),
         )
 
@@ -137,8 +156,9 @@ def load_config(config_path: str = "config.json") -> AppConfig:
 
 
 def resolve_api_key(provider: str) -> Optional[str]:
-    """从环境变量读取 API Key。"""
     env_map = {
         "dashscope": "DASHSCOPE_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
     }
     return os.environ.get(env_map.get(provider, f"{provider.upper()}_API_KEY"))

@@ -94,4 +94,5 @@ def create_web_search_tool() -> ToolDefinition:
             "required": ["query"],
         },
         handler=web_search,
+        read_only=True,
     )

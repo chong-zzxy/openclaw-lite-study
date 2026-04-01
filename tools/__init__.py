@@ -1,1 +1,1 @@
-from tools.registry import ToolRegistry, ToolResult, create_default_registry
+from tools.registry import ToolRegistry, ToolResult, ToolDefinition, create_default_registry
