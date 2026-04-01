@@ -2,7 +2,7 @@
     "identity": {
         "name": "Clawd",
         "theme": "helpful coding assistant",
-        "emoji": "🦞",
+        "emoji": "🐯",
         "system_prompt_extra": ""
     },
     "agent": {
@@ -42,5 +42,6 @@
         "reset_triggers": [
             "/new",
             "/reset"
-        ]    }
+        ]
+    }
 }

@@ -57,10 +57,10 @@ def main():
     _init_workspace_examples(workspace)
 
     # 初始化
-    session_store = SessionStore(cfg.session.store_path)
+    session_store = SessionStore(cfg.session.store_path) # 会话持久化存储
     session_id = "default"
-    tool_registry = create_default_registry()
-    hook_runner = create_hook_runner(cfg)
+    tool_registry = create_default_registry() # 工具表
+    hook_runner = create_hook_runner(cfg) # 钩子 日志等等
     # 长期记忆存储在 session store 同级目录
     ltm_dir = str(Path(cfg.session.store_path).expanduser().parent)
     long_term_memory = LongTermMemory(ltm_dir)
@@ -91,7 +91,7 @@ def main():
         try:
             user_input = input("你> ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n再见！")
+            print("\n山水有相逢，下次再见！")
             break
 
         if not user_input:
@@ -107,7 +107,7 @@ def main():
                     from agent import create_provider
                     provider = create_provider(cfg.agent.model.provider, cfg.agent.model.model)
                     from memory import extract_memories_from_conversation
-                    extract_memories_from_conversation(history, provider, long_term_memory, session_id)
+                    extract_memories_from_conversation(history, provider, long_term_memory, session_id) # 从对话中批量提取长期记忆
                 except Exception as e:
                     print(f"  ⚠️ 记忆提取失败: {e}")
             session_store.reset_session(session_id)

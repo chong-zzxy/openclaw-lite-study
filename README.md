@@ -209,7 +209,7 @@ python main.py
   "identity": {          // Agent 身份
     "name": "Clawd",     // 名字
     "theme": "helpful coding assistant",  // 主题描述
-    "emoji": "🦞",       // 前缀 emoji
+    "emoji": "🐯",       // 前缀 emoji
     "system_prompt_extra": ""  // 额外注入 system prompt 的内容
   },
   "agent": {
