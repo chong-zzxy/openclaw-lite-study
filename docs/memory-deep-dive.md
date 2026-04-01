@@ -56,7 +56,14 @@ class Message:
 
 ## Layer 2: 历史压缩 (`compaction.py`)
 
-当会话消息数超过阈值（默认 40 条）时，自动压缩旧消息：
+v2 改为 token 驱动的多层压缩（对标 Claude Code 的 autocompact + applyToolResultBudget）：
+
+### 第一层：工具结果截断
+当 tool 消息内容超过 8000 字符时，保留头 3000 + 尾 2000 字符，中间省略。
+这一层不调用 LLM，零成本，能快速释放大量 token 空间。
+
+### 第二层：LLM 摘要压缩
+当 `estimate_messages_tokens(history) > compaction_token_threshold`（默认 80000）时触发：
 
 1. 保留最近 10 条消息不动
 2. 将更早的消息用 LLM 生成一段摘要
@@ -64,15 +71,16 @@ class Message:
 4. 用一条 assistant 消息替换所有旧消息
 
 ```
-压缩前（45 条消息）：
+压缩前（token 估算 > 80000）：
 [msg1, msg2, ..., msg35] [msg36, msg37, ..., msg45]
  ←——— 旧消息（35条）——→  ←—— 最近消息（10条）——→
 
-压缩后（11 条消息）：
+压缩后：
 [摘要消息] [msg36, msg37, ..., msg45]
 ```
 
-压缩失败时保留原始历史，不会丢数据。
+两层组合：先截断工具结果（轻量），如果仍超阈值再做摘要（重量级）。
+压缩失败时保留原始历史，不会丢数据。可通过 `/compact` 命令手动触发。
 
 
 ## Layer 3: 长期记忆 (`memory.py`) — 核心设计

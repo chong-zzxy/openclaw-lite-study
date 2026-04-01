@@ -2,84 +2,75 @@
 
 > 🎓 学习项目 — 仅供学习和参考，不建议用于生产环境。
 
-OpenClaw 简化版 — 用 Python 实现的 AI Agent 学习项目。
+OpenClaw Lite 是一个用 Python 实现的 AI Agent 学习项目，通过逆向分析 [Claude Code](https://github.com/anthropics/claude-code) 源码，提炼并复现了其核心架构设计。
 
-聚焦核心概念：Agent 循环、工具调用、钩子系统、模型 Failover、历史压缩、身份/风格。
-
-## 项目背景
-
-本项目是 [OpenClaw](https://github.com/anthropics/openclaw)（TypeScript 实现的 AI Agent 框架）的 Python 简化复刻版。目标不是做一个生产级框架，而是用最少的代码把 AI Agent 的核心机制讲清楚。
-
-如果你想理解"一个 AI Agent 到底是怎么运转的"，这个项目就是答案。
+v2 版本受 Claude Code 源码启发，新增了流式输出、流式工具执行、四级权限系统、Token 驱动的多层压缩、全局状态管理等机制。
 
 ## 核心架构
 
-整个项目围绕一个核心循环展开：
+v2 的核心循环（对标 Claude Code 的 `queryLoop()`）：
 
 ```
 用户输入 → main.py → agent.py: run_agent_turn()
-  ├── 1. 加载配置、构建 system prompt
-  ├── 2. Compaction（历史过长时压缩）
-  ├── 3. Agent 循环（带 failover）:
-  │     ├── 调用 LLM
-  │     ├── 如果有工具调用:
-  │     │   ├── before_tool_call 钩子（可拦截）
-  │     │   ├── 执行工具
-  │     │   ├── after_tool_call 钩子（可修改结果）
-  │     │   └── 结果回传 LLM → 继续循环
-  │     └── 如果是文本回复 → 结束循环
+  ├── 1. 加载配置、构建 system prompt、注入长期记忆
+  ├── 2. Token 驱动的 Compaction（工具结果截断 + LLM 摘要）
+  ├── 3. 流式 Agent 循环（带 failover）:
+  │     ├── stream_chat() 流式调用 LLM
+  │     ├── text_delta → 实时打印到终端
+  │     ├── tool_call_done → 权限检查 → 提交流式执行器
+  │     │   ├── 只读工具并行执行（ThreadPoolExecutor）
+  │     │   └── 写工具串行执行（防竞态）
+  │     ├── 收集工具结果 → 回传 LLM → 继续循环
+  │     ├── finish_reason=length → 注入恢复指令（最多 2 次）
+  │     └── 无工具调用 → 结束循环
   ├── 4. 保存会话历史
-  └── 5. 返回回复
+  └── 5. 按需提取长期记忆
 ```
-
-用伪代码表示 Agent 循环的本质：
-
-```python
-while True:
-    response = llm.chat(messages, tools)
-    if response.has_tool_calls:
-        for tool_call in response.tool_calls:
-            result = execute_tool(tool_call)
-            messages.append(tool_result)
-        continue  # 带着工具结果再问一次 LLM
-    else:
-        return response.text  # LLM 给出了最终回复
-```
-
-这就是所有 AI Agent 的核心——一个"调用 LLM → 执行工具 → 回传结果"的循环。本项目在此基础上叠加了三个增强机制：Hooks、Failover、Compaction。
-
 
 ## 项目结构
 
 ```
 openclaw-lite/
-├── main.py              # CLI 入口（REPL 交互循环）
-├── agent.py             # Agent 循环核心
-├── config.py            # 配置加载（dataclass + JSON + .env）
+├── main.py              # CLI 入口（REPL + 命令系统）
+├── agent.py             # Agent 循环核心（流式 + 非流式双模式）
+├── config.py            # 配置加载（含权限、流式、token 阈值）
 ├── config.json          # 配置文件
+├── state.py             # 全局状态管理（AppState + StateStore）
+├── token_counter.py     # Token 计数（估算 + API 精确值）
+├── permissions.py       # 四级权限系统
+├── streaming.py         # 流式工具执行器（StreamingToolExecutor）
 ├── session.py           # 会话管理（历史持久化，原子写入）
 ├── identity.py          # 身份/风格系统
 ├── system_prompt.py     # System Prompt 构建
 ├── hooks.py             # 工具调用钩子（before/after）
 ├── failover.py          # 模型故障转移
-├── compaction.py        # 历史压缩
-├── memory.py            # 长期记忆（三层策略：显式/检测/批量提取）
+├── compaction.py        # 多层上下文压缩（token 驱动）
+├── memory.py            # 长期记忆（三层策略）
 ├── tools/
-│   ├── registry.py      # 工具注册表和调度
-│   ├── read_tool.py     # 文件读取
+│   ├── registry.py      # 工具注册表（含 read_only/destructive 标记）
+│   ├── sandbox.py       # 路径沙箱校验
+│   ├── read_tool.py     # 文件读取（read_only）
 │   ├── write_tool.py    # 文件写入
 │   ├── edit_tool.py     # 文件编辑（查找替换）
-│   ├── exec_tool.py     # Shell 命令执行
-│   └── web_search.py    # Web 搜索（DuckDuckGo）
+│   ├── exec_tool.py     # Shell 命令执行（destructive）
+│   ├── glob_tool.py     # 文件搜索（read_only）
+│   ├── grep_tool.py     # 内容搜索（read_only）
+│   └── web_search.py    # Web 搜索（read_only）
 ├── providers/
-│   ├── base.py          # LLM Provider 抽象基类
-│   └── openai_provider.py  # OpenAI 兼容 API 实现
-├── .env.example         # 环境变量模板
+│   ├── base.py          # LLM Provider 抽象（含 StreamChunk）
+│   └── openai_provider.py  # OpenAI 兼容实现（含 stream_chat）
+├── docs/
+│   ├── streaming-deep-dive.md      # 流式输出与流式工具执行
+│   ├── permissions-deep-dive.md    # 权限系统设计
+│   ├── query-loop-deep-dive.md     # 核心对话循环与容错机制
+│   ├── tool-system-deep-dive.md    # 工具系统设计
+│   ├── state-management-deep-dive.md  # 状态管理设计
+│   └── memory-deep-dive.md         # 记忆系统（已有，已更新）
+├── .env.example
 └── workspace-example/
-    ├── SOUL.md           # Agent 人格定义示例
-    └── AGENTS.md         # 项目指引示例
+    ├── SOUL.md
+    └── AGENTS.md
 ```
-
 
 ## 快速开始
 
@@ -95,130 +86,78 @@ cp .env.example .env
 python main.py
 ```
 
-进入 REPL 后可以直接对话，也可以用内置命令：
+## 命令列表
 
 | 命令 | 说明 |
 |------|------|
-| `/new` `/reset` | 重置会话 |
-| `/remember <文本>` | 主动记住一条信息（存入长期记忆） |
-| `/memory` | 查看当前长期记忆 |
-| `/model dashscope/qwen-max` | 运行时切换模型 |
+| `/new` `/reset` | 重置会话（会先提取长期记忆） |
+| `/mode [模式]` | 查看/切换权限模式（default/acceptEdits/plan/bypassPermissions） |
+| `/stats` | 查看累计 Token、压缩次数等统计 |
+| `/compact` | 手动压缩历史 |
+| `/remember <文本>` | 主动记住一条信息 |
+| `/memory` | 查看长期记忆 |
+| `/model <provider/model>` | 运行时切换模型 |
 | `/sessions` | 查看会话状态 |
+| `/help` | 显示帮助 |
 | `/quit` `/exit` | 退出 |
 
 
-## 六大核心模块详解
+## v2 新增特性
 
-### 1. Agent 循环 (`agent.py`)
+### 1. 流式输出
+模型边生成边打印到终端，不再等完整响应。Provider 新增 `stream_chat()` 方法，yield `StreamChunk` 对象（text_delta / tool_call_start / tool_call_delta / tool_call_done / usage / done）。详见 [流式输出深度解析](docs/streaming-deep-dive.md)。
 
-这是整个项目的心脏。`run_agent_turn()` 函数执行一个完整的对话轮次：
+### 2. 流式工具执行
+`StreamingToolExecutor` 在模型还在流式输出时，已解析完的 tool_call 立即提交执行。只读工具之间并行（ThreadPoolExecutor），写工具串行。详见 [流式输出深度解析](docs/streaming-deep-dive.md)。
 
-1. 构建 system prompt（身份 + 工具描述 + 工作区上下文）
-2. 检查是否需要历史压缩
-3. 进入工具调用循环（`_run_tool_loop`）
-4. 保存会话历史并返回回复
+### 3. 四级权限系统
+- `default`：写操作需用户确认，只读工具和安全命令自动放行
+- `acceptEdits`：文件编辑自动放行，shell 命令仍需确认
+- `plan`：只规划不执行，所有写操作被拒绝
+- `bypassPermissions`：跳过所有权限检查
 
-工具调用循环的关键在于：LLM 每次返回时，要么给出文本回复（循环结束），要么请求调用工具（执行工具后把结果塞回消息列表，再次调用 LLM）。这个循环最多执行 `max_tool_iterations` 次（默认 20 次），防止无限循环。
+工具标记 `read_only` / `destructive`，影响权限判断。详见 [权限系统深度解析](docs/permissions-deep-dive.md)。
 
-`execute_tool_with_hooks()` 是工具执行的入口，它在实际执行前后分别运行 before/after 钩子，实现了拦截、参数修改、结果处理等能力。
+### 4. 核心循环容错机制
+- Token 驱动的多层压缩（工具结果截断 + LLM 摘要）
+- max_output_tokens 恢复（输出截断时自动注入继续指令）
+- Failover（主模型失败切换备用）
+- Ctrl+C 优雅中断
 
+详见 [核心对话循环深度解析](docs/query-loop-deep-dive.md)。
 
-### 2. 钩子系统 (`hooks.py`)
+### 5. 工具系统增强
+- 工具标记 `read_only` / `destructive`，驱动权限判断和并行策略
+- 新增 `glob`（文件搜索）和 `grep`（内容搜索）工具
+- 7 个内置工具
 
-钩子是工具调用的拦截器，分两个时机：
+详见 [工具系统深度解析](docs/tool-system-deep-dive.md)。
 
-- `before_tool_call`：工具执行前。可以放行、拦截（`proceed=False`）、或修改参数
-- `after_tool_call`：工具执行后。可以拿到结果并修改它
-
-`HookRunner` 维护两个钩子列表，按注册顺序依次执行。做了错误隔离——单个钩子抛异常只打印警告，不影响其他钩子。
-
-内置三个钩子：
-
-| 钩子 | 类型 | 作用 |
-|------|------|------|
-| 日志钩子 | before + after | 记录每次工具调用的耗时 |
-| 危险命令拦截 | before | 拦截包含 `rm -rf`、`sudo` 等关键词的 shell 命令 |
-| 输出截断 | after | 超过阈值的工具输出自动截断，防止撑爆 context window |
-
-
-### 3. 模型 Failover (`failover.py`)
-
-当主模型（如 qwen-max）调用失败时，自动切换到备用模型（如 qwen-plus）重试。
-
-`run_with_failover()` 的逻辑：
-1. 用主 provider 执行 `run_fn`
-2. 如果抛出 `FailoverError` 且 `retryable=True`，尝试下一个 provider
-3. 所有 provider 都失败则抛出最后一个错误
-
-`FailoverError` 包含 `reason` 字段区分错误类型（`rate_limit`、`auth_failed`、`overloaded` 等），以及 `retryable` 标记是否可重试。不可重试的错误会直接抛出，不触发 failover。
-
-
-### 4. 历史压缩 (`compaction.py`)
-
-当会话消息数超过阈值（默认 40 条）时，自动压缩旧消息：
-
-1. `should_compact()` 检查是否需要压缩（只计算 user/assistant 消息数）
-2. `compact_history()` 执行压缩：
-   - 保留最近 10 条消息不动
-   - 将更早的消息用 LLM 生成一段摘要
-   - 摘要保留关键信息：用户请求、决策结论、文件路径、错误和修复记录
-   - 用一条 assistant 消息替换所有旧消息
-
-压缩失败时保留原始历史，不会丢数据。
-
-
-### 5. 工具系统 (`tools/`)
-
-工具系统由两部分组成：
-
-`ToolRegistry`（注册表）管理所有工具的注册、查找和调度。支持 allow/deny 列表过滤，`get_tools_for_llm()` 生成 OpenAI function calling 格式的 JSON Schema。
-
-五个内置工具：
-
-| 工具 | 功能 | 关键细节 |
-|------|------|----------|
-| `read` | 读取文件 | 支持行范围，超过 100K 字符自动截断 |
-| `write` | 写入文件 | 自动创建父目录 |
-| `edit` | 查找替换 | 要求 old_string 在文件中唯一匹配，防止误改 |
-| `exec` | 执行命令 | 带超时（默认 30s），输出超 50K 截断 |
-| `web_search` | 网页搜索 | DuckDuckGo HTML 版，纯 HTTP 请求 |
-
-
-### 6. System Prompt 构建 (`system_prompt.py`)
-
-`build_system_prompt()` 动态拼装 system prompt，包含以下部分：
-
-1. 身份声明（名字、主题、emoji）
-2. 可用工具列表及描述
-3. 工具调用风格指引（默认不叙述，直接调用）
-4. 安全规则（优先安全和人类监督）
-5. 工作区路径
-6. 当前时间
-7. 工作区上下文文件（自动加载 `SOUL.md`、`AGENTS.md`、`TOOLS.md`）
-8. 用户自定义的额外 prompt
-
-其中 `SOUL.md` 定义 Agent 人格，`AGENTS.md` 定义项目编码规范，这些文件放在工作区目录下会被自动读取并注入 system prompt。
+### 6. 全局状态管理
+`StateStore` 集中管理运行时状态（权限模式、token 统计、中断信号等），线程安全，支持监听器。详见 [状态管理深度解析](docs/state-management-deep-dive.md)。
 
 
 ## 配置说明
 
-所有配置在 `config.json` 中，支持以下配置段：
-
 ```jsonc
 {
-  "identity": {          // Agent 身份
-    "name": "Clawd",     // 名字
-    "theme": "helpful coding assistant",  // 主题描述
-    "emoji": "🦞",       // 前缀 emoji
-    "system_prompt_extra": ""  // 额外注入 system prompt 的内容
+  "identity": {
+    "name": "Clawd",
+    "theme": "helpful coding assistant",
+    "emoji": "🦞"
   },
   "agent": {
-    "workspace": "~/.openclaw-lite/workspace",  // 工作区目录
+    "workspace": "~/.openclaw-lite/workspace",
     "model": { "provider": "dashscope", "model": "qwen3-max" },
     "fallback_models": [{ "provider": "dashscope", "model": "qwen3.5-plus" }],
-    "timeout_seconds": 300,
-    "max_tool_iterations": 20,  // 单轮最大工具调用次数
-    "compaction_threshold": 40  // 触发历史压缩的消息数
+    "max_tool_iterations": 25,
+    "compaction_token_threshold": 80000,  // token 数触发压缩
+    "compaction_keep_recent": 10,
+    "stream": true                        // 流式输出开关
+  },
+  "permissions": {
+    "mode": "default",                    // 权限模式
+    "auto_allow_read_tools": true
   },
   "hooks": {
     "enable_logging": true,
@@ -226,35 +165,40 @@ python main.py
     "output_truncation_chars": 50000
   },
   "tools": {
-    "allow": ["exec", "read", "write", "edit", "web_search"],
+    "allow": ["exec", "read", "write", "edit", "glob", "grep", "web_search"],
     "deny": []
   },
   "session": {
     "store_path": "~/.openclaw-lite/sessions.json",
-    "history_limit": 50,
-    "reset_triggers": ["/new", "/reset"]
+    "history_limit": 100
   }
 }
 ```
 
-密钥通过 `.env` 文件管理（基于 python-dotenv），不要提交到版本控制。
 
+## 对标 Claude Code 源码映射
 
-## 对应 OpenClaw 源码映射
-
-| 本项目 | OpenClaw 原版 |
-|--------|--------------|
-| `agent.py` | `src/agents/agent-command.ts` + `src/agents/pi-embedded-runner/run.ts` |
-| `hooks.py` | `src/agents/pi-tools.before-tool-call.ts` + `src/hooks/` |
-| `failover.py` | `src/agents/model-fallback.ts` |
-| `compaction.py` | `src/agents/compaction.ts` |
-| `tools/registry.py` | `src/agents/tool-catalog.ts` + `src/agents/pi-tools.ts` |
+| 本项目 | Claude Code 原版 |
+|--------|-----------------|
+| `agent.py` `_run_streaming_tool_loop` | `src/query.ts` `queryLoop()` |
+| `streaming.py` `StreamingToolExecutor` | `StreamingToolExecutor` class |
+| `permissions.py` | `src/utils/permissions/PermissionMode.ts` |
+| `state.py` `StateStore` | `src/state/AppStateStore.ts` |
+| `token_counter.py` | `tokenCountWithEstimation()` |
+| `compaction.py` | `autocompact` + `applyToolResultBudget` |
+| `tools/registry.py` `read_only/destructive` | `Tool.isReadOnly()` / `Tool.isDestructive()` |
+| `providers/base.py` `StreamChunk` | `StreamEvent` type |
+| `hooks.py` | `src/utils/hooks/` |
+| `failover.py` | `FallbackTriggeredError` handling in queryLoop |
 | `system_prompt.py` | `src/agents/system-prompt.ts` |
-| `identity.py` | `src/agents/identity.ts` |
-| `session.py` | `src/config/sessions/store.ts` |
-| `config.py` | `src/config/config.ts` |
+| `memory.py` | 无直接对标（Claude Code 用 CLAUDE.md） |
 
 
 ## 深度解析文档
 
-- [记忆系统深度解析](docs/memory-deep-dive.md) — 详细拆解消息存储、历史压缩、记忆生命周期的完整实现思路
+- [流式输出与流式工具执行](docs/streaming-deep-dive.md)
+- [权限系统设计](docs/permissions-deep-dive.md)
+- [核心对话循环与容错机制](docs/query-loop-deep-dive.md)
+- [工具系统设计](docs/tool-system-deep-dive.md)
+- [状态管理设计](docs/state-management-deep-dive.md)
+- [记忆系统深度解析](docs/memory-deep-dive.md)
