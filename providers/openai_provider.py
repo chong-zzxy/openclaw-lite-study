@@ -41,6 +41,7 @@ class OpenAIProvider(LLMProvider):
                 try:
                     args = json.loads(tc.function.arguments)
                 except json.JSONDecodeError:
+                    print(f"  ⚠️ 工具参数 JSON 解析失败: {tc.function.name}，使用空参数")
                     args = {}
                 tool_calls.append(ToolCall(id=tc.id, name=tc.function.name,
                                            arguments=args))

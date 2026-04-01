@@ -360,5 +360,7 @@ def extract_memories_from_conversation(
 
         ltm.reset_extract_counter()
 
-    except (json.JSONDecodeError, Exception) as e:
+    except json.JSONDecodeError as e:
+        print(f"  ⚠️ 记忆提取 JSON 解析失败（LLM 返回了非 JSON 内容）: {e}")
+    except Exception as e:
         print(f"  ⚠️ 记忆提取失败: {e}")

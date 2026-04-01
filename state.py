@@ -67,14 +67,16 @@ class StateStore:
         with self._lock:
             fn(self._state)
             snapshot = self._state
-        for listener in self._listeners:
+            listeners = list(self._listeners)  # 遍历副本，防止迭代中修改
+        for listener in listeners:
             try:
                 listener(snapshot)
             except Exception:
                 pass
 
     def subscribe(self, listener: Callable[[AppState], None]):
-        self._listeners.append(listener)
+        with self._lock:
+            self._listeners.append(listener)
 
     def reset_turn(self):
         with self._lock:

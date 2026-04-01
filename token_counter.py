@@ -5,7 +5,7 @@ Token 计数。对标 Claude Code 的 tokenCountWithEstimation()。
 
 from __future__ import annotations
 
-CHARS_PER_TOKEN_CJK = 3.5
+CHARS_PER_TOKEN_CJK = 1.5  # 实际 DashScope/OpenAI tokenizer 约 1.3-1.5 字符/token
 CHARS_PER_TOKEN_EN = 4.0
 
 

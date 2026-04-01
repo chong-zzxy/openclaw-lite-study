@@ -6,6 +6,7 @@
 import json
 import time
 import sys
+import threading
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -82,6 +83,7 @@ class SessionStore:
     def __init__(self, store_path: str):
         self.store_path = Path(store_path).expanduser()
         self.sessions: dict[str, Session] = {}
+        self._lock = threading.Lock()
         self._load()
 
     def _load(self):
@@ -111,24 +113,27 @@ class SessionStore:
         return self.sessions[session_id]
 
     def add_message(self, session_id: str, message: Message):
-        """添加消息并立即持久化"""
-        session = self.get_or_create(session_id)
-        session.messages.append(message)
-        session.updated_at = time.time()
-        self._save()
+        """添加消息并立即持久化（线程安全）"""
+        with self._lock:
+            session = self.get_or_create(session_id)
+            session.messages.append(message)
+            session.updated_at = time.time()
+            self._save()
 
     def get_history(self, session_id: str, limit: int = 50) -> list[Message]:
-        """获取会话历史，limit > 0 时只返回最近 N 条"""
-        session = self.get_or_create(session_id)
-        if limit > 0 and len(session.messages) > limit:
-            return list(session.messages[-limit:])
-        return list(session.messages)
+        """获取会话历史，limit > 0 时只返回最近 N 条（线程安全）"""
+        with self._lock:
+            session = self.get_or_create(session_id)
+            if limit > 0 and len(session.messages) > limit:
+                return list(session.messages[-limit:])
+            return list(session.messages)
 
     def reset_session(self, session_id: str):
-        """删除指定会话及其所有消息"""
-        if session_id in self.sessions:
-            del self.sessions[session_id]
-            self._save()
+        """删除指定会话及其所有消息（线程安全）"""
+        with self._lock:
+            if session_id in self.sessions:
+                del self.sessions[session_id]
+                self._save()
 
     def list_sessions(self) -> list[str]:
         return list(self.sessions.keys())

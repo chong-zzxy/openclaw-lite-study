@@ -107,6 +107,11 @@ class StreamingToolExecutor:
                     self._completed.append(res)
             except Exception as e:
                 pass
+        # 清理已完成的 futures，防止列表无限增长
+        with self._lock:
+            self._futures = [
+                item for item in self._futures if not item[3].done()
+            ]
 
     def get_completed_results(self) -> list[ToolExecResult]:
         """
@@ -163,4 +168,8 @@ class StreamingToolExecutor:
             self._futures = []
 
     def shutdown(self):
+        """关闭线程池并清理所有缓存"""
         self._pool.shutdown(wait=False)
+        with self._lock:
+            self._futures.clear()
+            self._completed.clear()
