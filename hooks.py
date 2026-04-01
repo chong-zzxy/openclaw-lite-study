@@ -168,7 +168,20 @@ def create_dangerous_command_guard() -> BeforeToolCallHook:
 
     这里简化为拦截包含危险关键词的 exec 命令。
     """
-    DANGEROUS_PATTERNS = ["rm -rf", "sudo", "mkfs", "dd if=", "> /dev/"]
+    import re
+    DANGEROUS_PATTERNS = [
+        r"\brm\s+.*-[a-zA-Z]*r[a-zA-Z]*f",  # rm -rf, rm -fr, rm --recursive -f 等
+        r"\brm\s+-[a-zA-Z]*f[a-zA-Z]*r",     # rm -fr
+        r"\brm\s+(-rf?|--force)\s+[/~.]",    # rm -rf /, rm -f ~, rm -rf .
+        r"\bsudo\b",                           # sudo 任何形式
+        r"\bmkfs\b",
+        r"\bdd\s+if=",
+        r">\s*/dev/",
+        r"\bchmod\s+777\b",
+        r"\bcurl\b.*\|\s*(ba)?sh",            # curl | sh
+        r"\bwget\b.*\|\s*(ba)?sh",            # wget | sh
+        r"\b:(){ :\|:& };:",                  # fork bomb
+    ]
 
     def hook(ctx: BeforeToolCallContext) -> BeforeToolCallResult:
         if ctx.tool_name != "exec":
@@ -176,10 +189,10 @@ def create_dangerous_command_guard() -> BeforeToolCallHook:
 
         command = ctx.arguments.get("command", "")
         for pattern in DANGEROUS_PATTERNS:
-            if pattern in command:
+            if re.search(pattern, command):
                 return BeforeToolCallResult(
                     proceed=False,
-                    reason=f"拦截危险命令（包含 '{pattern}'）。如需执行，请确认后重试。",
+                    reason=f"拦截危险命令（匹配 '{pattern}'）。如需执行，请确认后重试。",
                 )
         return BeforeToolCallResult()
 

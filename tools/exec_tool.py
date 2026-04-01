@@ -6,6 +6,7 @@ from tools.sandbox import get_workspace
 
 MAX_OUTPUT = 50_000
 DEFAULT_TIMEOUT = 30
+MAX_TIMEOUT = 300
 
 
 def exec_command(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
@@ -13,6 +14,10 @@ def exec_command(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
     执行 shell 命令。cwd 设为 workspace 目录。
     带超时控制，输出超长自动截断。
     """
+    # 校验 timeout 参数
+    if not isinstance(timeout, (int, float)) or timeout <= 0:
+        timeout = DEFAULT_TIMEOUT
+    timeout = min(timeout, MAX_TIMEOUT)
     try:
         ws = get_workspace()
         r = subprocess.run(

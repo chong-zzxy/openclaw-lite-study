@@ -39,6 +39,8 @@ class OpenAIProvider(LLMProvider):
             "model": self._model,
             "messages": messages,
             "temperature": temperature,
+            "frequency_penalty": 1.05,  # 抑制重复 token 生成
+            "presence_penalty": 1.05,   # 惩罚已出现过的 token，抑制段落级重复
         }
         if tools:
             kwargs["tools"] = tools
@@ -54,6 +56,7 @@ class OpenAIProvider(LLMProvider):
                 try:
                     args = json.loads(tc.function.arguments)
                 except json.JSONDecodeError:
+                    print(f"  ⚠️ 工具参数 JSON 解析失败: {tc.function.name}，使用空参数")
                     args = {}
                 tool_calls.append(ToolCall(
                     id=tc.id, name=tc.function.name, arguments=args,

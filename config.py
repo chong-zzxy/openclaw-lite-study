@@ -133,6 +133,21 @@ def load_config(config_path: str = "config.json") -> AppConfig:
             reset_triggers=d.get("reset_triggers", ["/new", "/reset"]),
         )
 
+    return _validate_config(cfg)
+
+
+def _validate_config(cfg: AppConfig) -> AppConfig:
+    """校验配置值，不合法的回退到默认值"""
+    if cfg.agent.max_tool_iterations <= 0:
+        cfg.agent.max_tool_iterations = 20
+    if cfg.agent.timeout_seconds <= 0:
+        cfg.agent.timeout_seconds = 300
+    if cfg.agent.compaction_threshold <= 0:
+        cfg.agent.compaction_threshold = 40
+    if cfg.session.history_limit <= 0:
+        cfg.session.history_limit = 50
+    if cfg.hooks.output_truncation_chars < 0:
+        cfg.hooks.output_truncation_chars = 50000
     return cfg
 
 
@@ -141,4 +156,7 @@ def resolve_api_key(provider: str) -> Optional[str]:
     env_map = {
         "dashscope": "DASHSCOPE_API_KEY",
     }
-    return os.environ.get(env_map.get(provider, f"{provider.upper()}_API_KEY"))
+    key = os.environ.get(env_map.get(provider, f"{provider.upper()}_API_KEY"))
+    if key is not None and not key.strip():
+        return None  # 空字符串视为未设置
+    return key

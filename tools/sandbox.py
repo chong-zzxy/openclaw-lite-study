@@ -30,6 +30,7 @@ def resolve_safe_path(file_path: str) -> Path:
     - 相对路径：相对于 workspace 解析
     - 绝对路径：必须在 workspace 内
     - 禁止通过 .. 逃逸出 workspace
+    - 解析符号链接后再次验证，防止 symlink 逃逸
 
     返回解析后的绝对路径，不安全时抛出 ValueError。
     """
@@ -41,7 +42,7 @@ def resolve_safe_path(file_path: str) -> Path:
     else:
         resolved = (ws / p).resolve()
 
-    # 检查是否在 workspace 内
+    # 第一次检查：逻辑路径是否在 workspace 内
     try:
         resolved.relative_to(ws)
     except ValueError:
@@ -49,5 +50,18 @@ def resolve_safe_path(file_path: str) -> Path:
             f"路径 '{file_path}' 不在工作区内。"
             f"只允许访问 {ws} 及其子目录。"
         )
+
+    # 第二次检查：如果路径存在，解析符号链接后再验证真实路径
+    # 防止 workspace/link -> /etc/passwd 这类 symlink 逃逸攻击
+    if resolved.exists():
+        real_path = resolved.resolve(strict=True)
+        try:
+            real_path.relative_to(ws)
+        except ValueError:
+            raise ValueError(
+                f"路径 '{file_path}' 的符号链接目标不在工作区内。"
+                f"禁止通过符号链接访问 {ws} 外部的文件。"
+            )
+        return real_path
 
     return resolved
