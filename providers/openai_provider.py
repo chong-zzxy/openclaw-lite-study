@@ -24,7 +24,9 @@ class OpenAIProvider(LLMProvider):
     def chat(self, messages: list[dict], tools: list[dict] | None = None,
              temperature: float = 0.7) -> LLMResponse:
         kwargs: dict = {"model": self._model, "messages": messages,
-                        "temperature": temperature}
+                        "temperature": temperature,
+                        "frequency_penalty": 1.05,  # 抑制重复 token 生成
+                        "presence_penalty": 1.05}    # 惩罚已出现过的 token，抑制段落级重复
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
@@ -68,7 +70,9 @@ class OpenAIProvider(LLMProvider):
         """
         kwargs: dict = {"model": self._model, "messages": messages,
                         "temperature": temperature, "stream": True,
-                        "stream_options": {"include_usage": True}}
+                        "stream_options": {"include_usage": True},
+                        "frequency_penalty": 1.05,
+                        "presence_penalty": 1.05}
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"

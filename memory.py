@@ -113,9 +113,9 @@ class LongTermMemory:
     - ~/.openclaw-lite/memories.json      — 知识记忆
     """
 
-    MAX_MEMORIES = 100
-    MAX_PROFILE_ITEMS = 20
-    BATCH_EXTRACT_INTERVAL = 10  # 每 10 轮对话触发一次批量提取
+    MAX_MEMORIES = 100  # 记忆条目上限，超出后丢弃最早的
+    MAX_PROFILE_ITEMS = 20  # 用户画像每类（偏好/事实）最多保留条数
+    BATCH_EXTRACT_INTERVAL = 10  # 每 N 轮对话触发一次 LLM 批量提取，摊薄调用成本
 
     def __init__(self, store_dir: str):
         self._dir = Path(store_dir).expanduser()

@@ -16,7 +16,7 @@ load_dotenv()
 class IdentityConfig:
     name: str = "Clawd"
     theme: str = "helpful assistant"
-    emoji: str = "🦞"
+    emoji: str = "🐯"
     system_prompt_extra: str = ""
 
 
@@ -104,7 +104,7 @@ def load_config(config_path: str = "config.json") -> AppConfig:
         cfg.identity = IdentityConfig(
             name=d.get("name", "Clawd"),
             theme=d.get("theme", "helpful assistant"),
-            emoji=d.get("emoji", "🦞"),
+            emoji=d.get("emoji", "🐯"),
             system_prompt_extra=d.get("system_prompt_extra", ""),
         )
 
